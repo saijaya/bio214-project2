@@ -1,0 +1,177 @@
+Project 2
+Important Information
+Due electronically by 10/31/25 at 5pm. No submissions will be accepted 3 days after the deadline have passed.
+Programming projects must be completed individually. You may discuss algorithms with others, but the coding should be done alone. You must explicitly name everyone with whom you discussed this project in the header comments of your code and in the collaboration attestation in the project quiz. Students must abide by the terms of the Stanford Honor Code.
+Remember to consult Ed, as many common questions will be asked and answered there.
+Prior to beginning the assignment please read the Code Policy.
+You can use the standard Python libraries, as well as the following additional packages: node2vec, networkx, numpy, matplotlib, pandas, and scipy (and these packages only). Use of these packages is optional.
+From scikit-learn you are only allowed to use cosine distance function.
+Pay careful attention to instructions for naming and formatting output files. You will not receive full credit if you do not follow these instructions. We've made this autograder more flexible in how you implement the solutions, but you need to follow our directions below on the necessary class methods.
+You will need to write additional code to answer some of the quiz questions. This code does not need to be submitted, and will not be graded. The code you submit to Gradescope should not perform these additional tasks. Source code must run exactly as specified below. Do not output any additional text to the command line.
+We do not provide starter code or test cases for you to use in debugging this project. We provided these for Project 1 because that project is very difficult to test and debug de novo. If you understand these algorithms, you will be able to create your own test cases to check the correctness of your code. 
+Notes about Project 2 and the autograder
+Autograder Performance and Debugging
+Please do not use the autograder as a debugging tool since it runs more slowly this time. Instead write your own unit tests to check correctness before submitting.
+
+Runtime and Efficiency
+
+Your gsea.py and ppi.py implementations may run too slowly if they are not efficient, which can cause the autograder to time out after 40 minutes. Please try to avoid using for-loops, iterrows(), and append() as much as possible, as these operations will cause your code to run very slowly. Try using built-in functions from networkx (read_edgelist(), parse_edgelist()), numpy, and pandas (mean(), sort_values()) as much as possible, but remember, you are only allowed to use the cosine distance function from scikit-learn.
+
+To troubleshoot performance issues:
+
+Add timing tests locally to identify bottlenecks.
+While debugging, it is fine to submit a blank file for the program you do not want to run (gsea.py or ppi.py) when testing on the autograder.
+Files to Download
+You can download all files required for the project in the 'p2_student_files' folder. The files provided are described in the Instructions section.
+
+ 
+
+Introduction
+Each cell in the human body has the same genetic code, yet different cells perform a diverse array of different specialized functions. From the central dogma, we know that the genetic code (DNA) is used to transcribe (or “express”) genes to RNA transcripts (messenger RNA or mRNA) that carry information about which proteins are made in a cell. Most mRNA then goes on to the ribosome to be translated into proteins.
+
+Gene expression assays and interaction studies use mRNA measurements to study cell and/or tissue function, by assessing which genes are being transcribed in a cell at a given time. Gene expression can also provide insight into which genes may be involved in disease processes. In this assignment, you will analyze gene expression data collected from ectopic endometrium from healthy donors and patients with endometriosis using two computational methods: gene prediction through network embedding and Gene Set Enrichment Analysis (GSEA).
+
+In this analysis, we will compare expression from healthy controls and endometriosis patients. Endometriosis is characterized by presence of endometrial tissue outside the uterine cavity and is frequently associated with pain and infertility in women.
+
+ 
+
+High-throughput experiments provide broad coverage of interacting genes. These interactions can be used to detect genes that function together in creating a phenotype. These interactions are stored in publicly available databases like STRINGLinks to an external site.. We begin this study with a list of known genes that are associated with the disease and use the interaction network to predict a set of genes that are also related to endometriosis. In the interaction network, each node represents a gene, and each edge denotes an interaction between two genes. Similar genes that function together will have shared paths in the network. One method to computationally evaluate the similarity of two nodes is to perform a node embedding, which are vector representations of the nodes that capture shared paths in the network. The central idea in creating an embedding is that nodes that are similar to each other (share many paths) will be close to each other in the vector space. In this project we will implement a common embedding method, Node2VecLinks to an external site., which uses random walks in the network as input to a neural network to generate the node embeddings. A detailed explanation of Node2Vec can be found here: https://towardsdatascience.com/node2vec-explained-db86a319e9abLinks to an external site.. We will then use the cosine distanceLinks to an external site. between the node vectors to identify genes that are similar to the known disease genes.
+
+ 
+
+The expression dataset is available on Gene Expression Omnibus (GEO), accession number GSE25628Links to an external site.. (Take the time read the description at the link). We downloaded the expression data from this study and preprocessed it by filtering for lowly expressed genes, mapping probes to gene names, and collapsing across probes that map to the same gene. This was done using the GEOparseLinks to an external site. package.
+
+In the second part, you will implement GSEA (as discussed in lecture) to identify gene sets that are significantly enriched in pathological samples to get an idea of potentially activated pathways involved in the disease and evaluate your predicted gene set (from Part 1). We will be using pathways from the KEGG database and compare these enrichments to your predicted set. KEGG is just one example of a set of pathways, there are many other pathway resources that may provide additional information and consider different sets of genes (go to MSigDBLinks to an external site. if you are interested). The results from this type of analysis could be helpful downstream in understanding which genes play a role in endometriosis development and treatment.
+
+ 
+
+Crispi, S., Piccolo, M. T., D'avino, A., Donizetti, A., Viceconte, R., Spyrou, M., ... & Signorile, P. G. (2013). Transcriptional profiling of endometriosis tissues identifies genes related to organogenesis defects. Journal of cellular physiology, 228(9), 1927-1934.
+
+Subramanian, A., Tamayo, P., Mootha, V. K., Mukherjee, S., Ebert, B. L., Gillette, M. A., ... & Mesirov, J. P. (2005). Gene set enrichment analysis: a knowledge-based approach for interpreting genome-wide expression profiles. Proceedings of the National Academy of Sciences, 102(43), 15545-15550.
+
+Learning goals
+Understand how to use biological networks and generate node embeddings.
+Implement the GSEA algorithm, and understand the concepts of random walks and bootstrapping.
+Understand how different (hyper)parameter choices impact algorithm performance.
+Learn about the potential and the limitations of biological interpretation of the results.
+ 
+
+Instructions
+Any data included in the output formatting examples are made up and should not be used to check code accuracy. Please pay attention to formatting requirements. Once again, do not use built-in functions from scikit-learn for this project – this will be checked by our style graders and will result in loss of credit. You can use the standard Python libraries, as well as the following additional packages: node2vec, networkx, numpy, matplotlib, pandas, and scipy (and these packages only). Use of these packages is optional.
+
+pip3 install numpy pandas scipy networkx node2vec
+
+ 
+
+Part 1: Node Embeddings
+Read in the interaction file, interaction_network.txt, and disease gene file, disease_gene_list.txt. The file names for this input should be command line arguments.
+Run the script as:
+python3 ppi.py diseaseGeneFile interactionNetworkFile
+ The disease gene file is a list of gene names separated by a new line.
+The interaction network file has one interaction per row, with the first two columns being the interaction genes and the third column is the weight of the interaction. We will not be using the weight for this assignment.
+Write a class called PPI to implement the algorithm to create a network, embed the nodes, and find similar genes based on a cosine distance threshold, t. Your code should work for any value of t in [0,2].
+Note: The cosine distance function from scikit-learn implementation is much faster than the scipy implementation. 
+
+      Your class can have as many functions as you want, but the following functionality must be present for grading purposes:
+
+When calling Node2Vec use the following parameters: dimensions=64, walk_length=30, num_walks=100, workers=1, seed=42 (**important use seed=42 for reproducible results)
+PPI.load_data(diseaseGeneFile, interactionNetworkFile) should take the paths to the disease gene file and interaction network file and store within your PPI class. You may find it convenient to store the interaction network as a graph using the network packageLinks to an external site..
+PPI.calculate_embedding() should return a list of the nodes in the graph and a list of their vector embeddings. The order of the nodes should correspond to the order of the embeddings.
+Train the embedding model using the following parameters: window=3, min_count=1, batch_words=4
+PPI.get_close_genes(gene_nodes, gene_embeddings, threshold) where gene_nodes is the list of nodes produced and gene_embeddings is the list of node vectors produced by the embedding (they should be in corresponding order). The threshold is the maximum distance two genes can be to be considered similar. This function should return a set of genes that are predicted similar to the given set of disease genes, including the set of known disease genes. When multiple disease genes are provided, you will take a union of their similar genes.  If no genes are predicted, return simply the known disease genes.
+You will output this list of predicted similar genes and the disease genes to a txt file. For the next part, it is recommended that you output the data in this format (no header):
+<pathway_name> <\t> <description> <\t> <gene1> <\t> <gene2> <\t>…
+
+More tips to beat the autograder 
+Import from gensim.models import Word2Vec as one of your imports. This package has already been installed by node2vec.
+In your calculate_embedding() function add the following lines at the start of the function:
+
+if os.path.exists("node2vec_pretrained"):
+
+   model = Word2Vec.load("node2vec_pretrained")
+
+   print("loaded pretrained model successfuly")
+
+else:
+
+   # YOUR CODE
+
+   # create and fit the model here if it doesn't already exist
+
+   # so you prob have a few lines of code and then
+
+   # model = ...
+
+   # model.save("node2vec_pretrained")
+
+# YOUR CODE then do your code to use the model to create the embeddings for the genes
+Run your code locally to generate this "node2vec_pretrained" object.
+Upload this node2vec_pretrained object as part of your submission (so upload node2vec_pretrained and ppi.py). It must have this exact name (note there's no file extension here).
+Note: This is NOT required (you continue to upload just ppi.py as your submission), but this should be much faster for most students. If you are already passing the autograder, there is NO need to make any changes. This is just an option for students timing out.
+
+ 
+
+Part 2. GSEA
+Read in the file containing KEGG gene set assignments, available on Canvas as "c2.cp.kegg.v6.2.symbols.filtered.gmt". This file name should be a command line argument.
+Run your script as:
+python3 gsea.py expfile sampfile keggfile
+The KEGG file is tab-delimited and contains a row for each gene set with the name and associated genes.
+The first column is the gene set name, the second is a link to additional info (can be ignored), and then each subsequent column contains the gene names included in that set. The number of columns with data per row will vary depending on the size of the gene set.
+Create a class, named GSEA, to implement a given gene set enrichment analysis. Initialize the class with the expression data, sample assignments and list of gene sets. GSEA should be able to perform the following:
+Rank genes by their log fold-change between healthy donors and endometriosis patients by taking the log2 of the ratio of mean endometriosis patient expression to mean healthy expression per gene. Because the expression values are already log-normalized, you can compute the log fold-change simply by subtracting the mean log expression of healthy donors from that of endometriosis patients:
+Calculate the enrichment score (ES) of a gene set in the ranked gene list. You can exclude KEGG genes not in the expression data. This should implement the Brownian bridge discussed in class. As a reminder, the steps to calculate the ES are below, and this link may be helpful: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3205944/#SD1Links to an external site..
+(a) Calculate the appropriate up or down score for this particular gene set, controlling for the number of genes.
+(b) Move down the ranked list of genes, adding to the running sum the value from (a) if the gene is in the set of interest, or subtracting from the running sum if not.
+(c) Find the supremum of the brownian bridge as the ES. We are interested in gene sets that are enriched in up-regulated genes here, so do not take the absolute value in this case.
+For your debugging only: output the enrichment score (rounded to 2 decimal places) of each gene set, sorted with the highest score first, in a tab-delimited file named kegg_enrichment_scores.txt as follows (no header): 'KEGG_CITRATE_CYCLE_TCA_CYCLE 4.20'
+Create a background distribution of enrichment scores by permuting the sample labels and re-calculating the ranked gene list 100 times and calculate a p-value for each gene set by counting the number of times in the permuted iterations a gene set had an equal or higher score than its actual score over the total number of iterations.
+Correct p-values for number of tests (equal to the number of gene sets) via Bonferroni
+You can include as many functions or additional classes as you would like within to accomplish the above, but the following functionality must be present for grading purposes:
+
+load_data(expfile, sampfile, genesets) should take the file paths to the expression, sample and gene set data, read them in and store within the GSEA instance.
+get_gene_rank_order() should return a list of all genes (as strings) ranked by their logFC between patient and control, with the gene with the highest logFC ordered first.
+get_enrichment_score(geneset) should return the enrichment score, a float correct to two decimal places for a given gene set, such as ‘KEGG_CITRATE_CYCLE_TCA_CYCLE’ (which is the string for the gene set name corresponding to the gene set). This method should run get_gene_rank_order at some point to initiate enrichment calculations.
+get_sig_sets(p) should return the list of significant gene sets (as strings), at a corrected threshold of p, by name. If no gene sets are significant, return an empty list. This method should run get_gene_rank_order and/or get_enrichment_score at some point to initiate enrichment calculations and then identify significant gene sets. Make sure you write an efficient implementation of this method, as inefficient solutions will time out on the autograder.
+You will submit two scripts, which should be able to run as:
+
+python3 ppi.py diseaseGeneFile interactionNetworkFile
+
+python3 gsea.py expinputfile sampleinputfile kegginputfile
+
+This should produce the output as described above. No additional submission files are necessary. You can include additional functions to those described above, but make sure all the functions described are present, as the autograder will use these functions to assign points, as in the below rubric. All code should be well-documented, refer to the style guidelines.
+
+Also note that we don't require any output written to files or on the command line. We are testing the functionality of the specified class methods only. This is in hopes of avoiding output file writing discrepancies. For debugging, we suggest using main functions to call your objects' methods — these main functions are not tested, so feel free to run any experiments you want. 
+
+ 
+
+Rubric
+We will use the class functions described above to implement the following tests for grading. You can earn partial credit if you pass a subset of the tests in a given section. Please pay attention to any rounding or output formatting instructions above.
+
+Code total: 55 + 10 style points = 65 total points
+
+Correct implementation and evaluation of PPI embedding - 20 points
+Correct implementation of GSEA - 35 points
+Style - 10 points
+Scoring tests
+
+All required functions are present for the PPI class – 5 points
+Correct similar predicted genes for several threshold values – 10 points
+Correct embedding for several nodes – 5 points
+All required functions are present for the GSEA class – 5 points
+Differential expression ranking correct – 5 points
+Enrichment scores correct – 15 points
+Number of significant sets in correct range – 5 points
+Significance calculation runs in under 3 minutes – 5 points
+ 
+
+Quiz
+You will run your code to answer the questions in the quiz on Canvas. In order to answer some questions you may have to write additional functions. Any code you write for the sole purpose of answering the quiz questions should not be submitted.
+
+ 
+
+Submission Instructions
+Take the quiz on Canvas.
+Submit your scripts ppi.py and gsea.py via Gradescope. Remember, we expect well-commented code.
+Please be sure you have followed all of the project directives as a portion of your grade is based on your compliance with these directives, and we use an autograder that is expecting you to follow the above instructions. You may not receive credit otherwise.
+
+Again, the autograder is not a valid debugging strategy! Please write your own tests for sanity checking. This autograder takes longer to run this time around, so be cognizant with your time.  Furthermore, all functions are tested independently, so please call previously-defined "setup" functions and utilize their returned values in downstream functions (see specific function specs above).
