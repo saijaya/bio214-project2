@@ -68,9 +68,8 @@ class PPI:
         Store any instance variables you need here.
         """
         self.disease_genes = None
-        self.interaction_network = None
-        self.graph = None
-        # Add any other instance variables you need
+        self.gene_network = None
+        self.trained_node2vec_model = None
 
     def load_data(self, diseaseGeneFile, interactionNetworkFile):
         """
@@ -92,16 +91,15 @@ class PPI:
         for gene in self.disease_genes:
             print(gene)
 
-        self.interaction_network = load_interaction_network(interactionNetworkFile)
-        nodes = list(self.interaction_network.nodes())
+        self.gene_network = load_interaction_network(interactionNetworkFile)
+        nodes = list(self.gene_network.nodes())
         print("\ngene_network:")
         print(f"Total nodes: {len(nodes)}")
         print(f"Sample nodes: {nodes[:20]}")
-        edges = list(self.interaction_network.edges())
+        edges = list(self.gene_network.edges())
         print(f"Total edges: {len(edges)}")
         print(f"Sample edges: {edges[:10]}")
-        
-    
+
     def calculate_embedding(self):
         """
         Calculate node embeddings using Node2Vec algorithm.
@@ -116,37 +114,39 @@ class PPI:
                 - gene_embeddings: list of corresponding vector embeddings (numpy arrays)
                 Order must correspond between the two lists!
         
-        Performance tip: Save and load pre-trained model to speed up autograder.
+        Performance tip: Save and load pre-trained trained_node2vec_model to speed up autograder.
         See project description lines 89-108 for details.
         """
         
-        # Performance optimization: check if pre-trained model exists
+        # Performance optimization: check if pre-trained trained_node2vec_model exists
         if os.path.exists("node2vec_pretrained"):
-            model = Word2Vec.load("node2vec_pretrained")
-            print("loaded pretrained model successfully")
+            trained_node2vec_model = Word2Vec.load("node2vec_pretrained")
+            print("loaded pretrained trained_node2vec_model successfully")
         else:
-            # TODO: Create Node2Vec object with EXACT parameters
-            # node2vec = Node2Vec(self.graph, dimensions=64, walk_length=30, 
-            #                     num_walks=100, workers=1, seed=42)
+            # Create Node2Vec object
+            # dimensions = 64, walk_length = 30, num_walks = 100, workers = 1, seed = 42
+            node2vec_model = Node2Vec(self.gene_network, dimensions=64, walk_length=30,
+                                      num_walks=100, workers=1, seed=42)
             
-            # TODO: Fit the model with EXACT training parameters
-            # model = node2vec.fit(window=3, min_count=1, batch_words=4)
+            # Fit the trained_node2vec_model with EXACT training parameters
+            # window=3, min_count=1, batch_words=4
+            trained_node2vec_model = node2vec_model.fit(window=3, min_count=1, batch_words=4)
             
-            # TODO: Save the model for future use
-            # model.save("node2vec_pretrained")
-            
-            pass
+            # Save the trained_node2vec_model for future use
+            trained_node2vec_model.save("node2vec_pretrained")
+
+        self.trained_node2vec_model = trained_node2vec_model
         
-        # TODO: Extract embeddings for all nodes in the graph
-        # Hint: model.wv contains the word vectors (node embeddings)
-        # Make sure gene_nodes and gene_embeddings are in corresponding order!
-        
-        gene_nodes = []  # List of gene names
-        gene_embeddings = []  # List of embedding vectors
-        
+        # Extract embeddings for all nodes in the graph
+        gene_nodes = list(self.gene_network.nodes())
+        print(f"num genes in network: {len(gene_nodes)}")
+        gene_embeddings = [trained_node2vec_model.wv[node] for node in gene_nodes]
+        print(f"num embeddings: {len(gene_embeddings)}")
+        print(f"verify embedding 0: {self.trained_node2vec_model.wv[gene_nodes[0]]}")
+        print(f"verify embedding 0: {gene_embeddings[0]}")
+
         return gene_nodes, gene_embeddings
-    
-    
+
     def get_close_genes(self, gene_nodes, gene_embeddings, threshold):
         """
         Find genes similar to disease genes based on cosine distance threshold.
@@ -168,19 +168,26 @@ class PPI:
               Take union across all disease genes
         """
         
-        # TODO: Convert gene_embeddings to numpy array if needed
-        
-        # TODO: For each disease gene:
-        #       1. Find its embedding
-        #       2. Calculate cosine distances to all genes
-        #       3. Find genes within threshold distance
-        
-        # TODO: Take union of similar genes across all disease genes
-        
-        # TODO: Include original disease genes in the result set
-        
-        similar_genes = set()
-        
+        # Convert gene_embeddings to numpy array
+        network_gene_embeddings_matrix = np.array(gene_embeddings)
+        similar_genes = set(self.disease_genes)
+        gene_to_index_dict = {gene: index for index, gene in enumerate(gene_nodes)}
+
+        disease_gene_indices = [gene_to_index_dict[gene] for gene in self.disease_genes if gene in gene_to_index_dict]
+
+        if len(disease_gene_indices) == 0:
+            return similar_genes
+
+        disease_gene_embeddings_matrix = network_gene_embeddings_matrix[disease_gene_indices]
+        disease_to_network_gene_distances = cosine_distances(disease_gene_embeddings_matrix, network_gene_embeddings_matrix)
+
+        threshold_filter = (disease_to_network_gene_distances <= threshold).any(axis=0)
+        gene_nodes_matrix = np.array(gene_nodes)
+        close_genes = gene_nodes_matrix[threshold_filter]
+        similar_genes.update(close_genes)
+
+        print(f"Found {len(similar_genes)} similar genes (including {len(self.disease_genes)} disease genes)")
+
         return similar_genes
 
 
@@ -199,13 +206,13 @@ def main():
     # Create PPI object and run analysis
     ppi = PPI()
     ppi.load_data(disease_file, network_file)
-    # gene_nodes, gene_embeddings = ppi.calculate_embedding()
-    
+    gene_nodes, gene_embeddings = ppi.calculate_embedding()
+
     # Example: Get similar genes with threshold of 0.5
-    # threshold = 0.5
-    # similar_genes = ppi.get_close_genes(gene_nodes, gene_embeddings, threshold)
+    threshold = 0.2
+    similar_genes = ppi.get_close_genes(gene_nodes, gene_embeddings, threshold)
+    print(similar_genes)
     
-    # print(f"Found {len(similar_genes)} similar genes (including disease genes)")
     # You can output to file here if needed for your own analysis
 
 
