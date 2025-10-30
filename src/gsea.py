@@ -54,7 +54,7 @@ def read_human_gene_expression_file(human_gene_expression_file):
     return human_gene_expression_df
 
 
-def read_human_condition_as_dict(samples_txt_file):
+def read_human_condition_as_df(samples_txt_file):
     """
     Read sample labels file and return as dictionary.
 
@@ -67,6 +67,20 @@ def read_human_condition_as_dict(samples_txt_file):
     labels_df = pd.read_csv(samples_txt_file, sep='\t', header=None,
                             names=['sample_id', 'condition'])
     print(labels_df)
+    return labels_df
+
+
+def read_human_condition_as_dict(samples_txt_file):
+    """
+    Read sample labels file and return as dictionary.
+
+    Args:
+        samples_txt_file (str): Path to sample file
+
+    Returns:
+        dict: Dictionary mapping sample_id to condition {sample_id: 0 or 1}
+    """
+    labels_df = read_human_condition_as_df(samples_txt_file)
     labels_dict = dict(zip(labels_df['sample_id'], labels_df['condition']))
     return labels_dict
 
@@ -82,6 +96,7 @@ class GSEA:
         """
         self.human_gene_expression_df = None
         self.human_condition_dict = None
+        self.human_condition_df = None
         self.geneset_definitions_dict = None
         self.ranked_genes = None
         # Add any other instance variables you need
@@ -108,10 +123,12 @@ class GSEA:
         self.human_condition_dict = read_human_condition_as_dict(sampfile)
         print(self.human_condition_dict)
 
+        self.human_condition_df = read_human_condition_as_df(sampfile)
+        print(self.human_condition_df)
+
         self.human_gene_expression_df = read_human_gene_expression_file(expfile)
         print(self.human_gene_expression_df)
-    
-    
+
     def get_gene_rank_order(self):
         """
         Rank genes by log fold-change between endometriosis and healthy samples.
@@ -124,19 +141,42 @@ class GSEA:
         Hint: Since expression is already log-normalized, just subtract means
               Use pandas groupby and vectorized operations for efficiency
         """
-        # TODO: Separate samples into healthy and endometriosis groups
-        
-        # TODO: Calculate mean expression for each group per gene
-        
-        # TODO: Calculate log fold-change (endometriosis - healthy)
-        
-        # TODO: Sort genes by logFC (descending order)
-        
-        ranked_genes = []
-        
+        print(self.human_gene_expression_df)
+
+        pivot_human_gene_expression_df = self.human_gene_expression_df.reset_index().melt(
+            id_vars="SYMBOL",
+            var_name="sample_id",
+            value_name="gene_expression"
+        )
+        print(pivot_human_gene_expression_df)
+
+        pivot_human_gene_expression_join_condition_df = pd.merge(pivot_human_gene_expression_df,
+                                                                 self.human_condition_df,
+                                                                 on="sample_id")
+        print(pivot_human_gene_expression_join_condition_df)
+
+        mean_expression_per_gene_condition_df = pivot_human_gene_expression_join_condition_df[["SYMBOL", "condition", "gene_expression"]].groupby(["SYMBOL", "condition"]).mean().reset_index()
+        print(mean_expression_per_gene_condition_df)
+
+        # Pivot to make conditions (0, 1) become columns
+        pivoted_mean_expression_per_gene_condition_df = mean_expression_per_gene_condition_df.pivot(
+            index='SYMBOL',
+            columns='condition',
+            values='gene_expression'
+        )
+
+        pivoted_mean_expression_per_gene_condition_df["log_fc_gene"] = pivoted_mean_expression_per_gene_condition_df[1] - pivoted_mean_expression_per_gene_condition_df[0]
+
+        print(pivoted_mean_expression_per_gene_condition_df)
+
+        ranked_gene_df = pivoted_mean_expression_per_gene_condition_df.sort_values(by="log_fc_gene", ascending=False)
+        print(ranked_gene_df)
+        ranked_genes = ranked_gene_df.index.tolist()
+        print(ranked_genes[:10])
+        print(ranked_genes[-10:])
+
         return ranked_genes
-    
-    
+
     def get_enrichment_score(self, geneset):
         """
         Calculate enrichment score for a given gene set using Brownian bridge method.
@@ -244,7 +284,7 @@ def main():
     gsea.load_data(human_gene_expression_file, human_condition_file, geneset_definitions_file)
     
     # Get ranked genes
-    # ranked_genes = gsea.get_gene_rank_order()
+    ranked_genes = gsea.get_gene_rank_order()
     # print(f"Ranked {len(ranked_genes)} genes")
     
     # Example: Get enrichment score for a specific pathway
