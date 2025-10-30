@@ -261,25 +261,46 @@ class GSEA:
         Use vectorized operations, avoid loops where possible
         """
         # TODO: Calculate actual enrichment scores for all gene sets
-        
-        # TODO: Permutation testing (100 iterations)
-        # For each iteration:
-        #   - Shuffle sample labels (np.random.permutation can help)
-        #   - Recalculate gene rankings
-        #   - Recalculate ES for all gene sets
-        #   - Store results
-        
-        # TODO: Calculate p-values
+        original_condition_df = self.human_condition_df.copy()
+        actual_lebel_geneset_enrichment_score_dict = dict()
+        for geneset_name, set_of_genes in self.geneset_definitions_dict.items():
+            actual_lebel_geneset_enrichment_score_dict[geneset_name] = self.get_enrichment_score(geneset_name)
+
+        permutated_label_geneset_enrichment_scores_dict = dict()
+        for i in range(100):
+            self.human_condition_df['condition'] = np.random.permutation(
+                original_condition_df['condition'].values
+            )
+
+            self.ranked_genes_list = None
+
+            for geneset_name in self.geneset_definitions_dict:
+                if geneset_name not in permutated_label_geneset_enrichment_scores_dict:
+                    permutated_label_geneset_enrichment_scores_dict[geneset_name] = list()
+
+                permutated_label_geneset_enrichment_scores_dict[geneset_name].append(self.get_enrichment_score(geneset_name))
+
+        # Restore original after all permutations
+        self.human_condition_df = original_condition_df
+        self.ranked_genes_list = None
+
+        # Calculate p-values
         # For each gene set: count how many permuted ES >= actual ES
-        # p-value = count / 100
+        num_genesets = len(self.geneset_definitions_dict)
+
+        significant_sets = list()
+        for geneset_name in self.geneset_definitions_dict:
+            ES_enrichment_score_actual = actual_lebel_geneset_enrichment_score_dict[geneset_name]
+            num_perm_es_greater_actual_es = len([perm_score for perm_score in permutated_label_geneset_enrichment_scores_dict[geneset_name] if perm_score >= ES_enrichment_score_actual])
+
+            p_value = num_perm_es_greater_actual_es / 100
         
-        # TODO: Apply Bonferroni correction
-        # corrected_p = p-value * number_of_gene_sets
-        
-        # TODO: Filter for significant gene sets (corrected_p < p)
-        
-        significant_sets = []
-        
+            # Apply Bonferroni correction
+            corrected_p = p_value * num_genesets
+
+            if corrected_p < p:
+                significant_sets.append(geneset_name)
+
         return significant_sets
 
 
@@ -306,8 +327,8 @@ def main():
     print(f"Enrichment score for {example_pathway}: {gene_enrichment_score}")
     
     # Get significant gene sets at p < 0.05
-    # sig_sets = gsea.get_sig_sets(0.05)
-    # print(f"Found {len(sig_sets)} significant gene sets")
+    sig_sets = gsea.get_sig_sets(0.05)
+    print(f"Found {len(sig_sets)} significant gene sets")
     
     # Optional: Output results for your own analysis
 
