@@ -198,12 +198,16 @@ class GSEA:
         Note: Only consider genes that are in both the gene set AND expression data
               We're looking for UP-regulated gene sets, so don't take absolute value
         """
-        ranked_genes_list = self.ranked_genes_list
-        ranked_genes_set = set(ranked_genes_list)
+
+        # Get ranked genes
+        if self.ranked_genes_list is None:
+            self.ranked_genes_list = self.get_gene_rank_order()
+
+        ranked_genes_set = set(self.ranked_genes_list)
         set_of_genes_in_geneset = self.geneset_definitions_dict[geneset]
         set_of_genes_in_geneset = set([gene for gene in set_of_genes_in_geneset if gene in ranked_genes_set])
 
-        N_num_genes_universal_L = len(ranked_genes_list)
+        N_num_genes_universal_L = len(self.ranked_genes_list)
         G_num_genes_in_geneset_S = len(set_of_genes_in_geneset)
         print(f"num genes universal: {N_num_genes_universal_L}")
         print(f"num genes in geneset \"{geneset}\": {G_num_genes_in_geneset_S}")
@@ -212,18 +216,22 @@ class GSEA:
         down_score = np.sqrt(G_num_genes_in_geneset_S/(N_num_genes_universal_L-G_num_genes_in_geneset_S))
 
         score = 0.0
-        score_list = list()
+        geneset_enrichment_score = None
 
-        for gene in ranked_genes_list:
+        for gene in self.ranked_genes_list:
             if gene in set_of_genes_in_geneset:
                 score = score + up_score
             else:
                 score = score - down_score
 
-            score_list.append(score)
+            if geneset_enrichment_score is None:
+                geneset_enrichment_score = score
 
-        geneset_enrichment_score = np.round(max(score_list), 2)
-        
+            if score > geneset_enrichment_score:
+                geneset_enrichment_score = score
+
+        geneset_enrichment_score = np.round(geneset_enrichment_score, 2)
+
         return geneset_enrichment_score
     
     
@@ -291,10 +299,6 @@ def main():
     # Create GSEA object and run analysis
     gsea = GSEA()
     gsea.load_data(human_gene_expression_file, human_condition_file, geneset_definitions_file)
-    
-    # Get ranked genes
-    ranked_genes = gsea.get_gene_rank_order()
-    print(f"Ranked {len(ranked_genes)} genes")
     
     # Example: Get enrichment score for a specific pathway
     example_pathway = "KEGG_CITRATE_CYCLE_TCA_CYCLE"
