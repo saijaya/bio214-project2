@@ -34,7 +34,7 @@ def read_geneset_definitions(gmt_file):
             if len(parts) >= 3:
                 pathway_name = parts[0]
                 genes = parts[2:]
-                gene_sets[pathway_name] = genes
+                gene_sets[pathway_name] = set(genes)
 
     return gene_sets
 
@@ -98,7 +98,7 @@ class GSEA:
         self.human_condition_dict = None
         self.human_condition_df = None
         self.geneset_definitions_dict = None
-        self.ranked_genes = None
+        self.ranked_genes_list = None
         # Add any other instance variables you need
 
     def load_data(self, expfile, sampfile, genesets):
@@ -171,11 +171,11 @@ class GSEA:
 
         ranked_gene_df = pivoted_mean_expression_per_gene_condition_df.sort_values(by="log_fc_gene", ascending=False)
         print(ranked_gene_df)
-        ranked_genes = ranked_gene_df.index.tolist()
-        print(ranked_genes[:10])
-        print(ranked_genes[-10:])
+        self.ranked_genes_list = ranked_gene_df.index.tolist()
+        print(self.ranked_genes_list[:10])
+        print(self.ranked_genes_list[-10:])
 
-        return ranked_genes
+        return self.ranked_genes_list
 
     def get_enrichment_score(self, geneset):
         """
@@ -198,24 +198,33 @@ class GSEA:
         Note: Only consider genes that are in both the gene set AND expression data
               We're looking for UP-regulated gene sets, so don't take absolute value
         """
-        # TODO: Get or use ranked gene list
+        ranked_genes_list = self.ranked_genes_list
+        ranked_genes_set = set(ranked_genes_list)
+        set_of_genes_in_geneset = self.geneset_definitions_dict[geneset]
+        set_of_genes_in_geneset = set([gene for gene in set_of_genes_in_geneset if gene in ranked_genes_set])
+
+        N_num_genes_universal_L = len(ranked_genes_list)
+        G_num_genes_in_geneset_S = len(set_of_genes_in_geneset)
+        print(f"num genes universal: {N_num_genes_universal_L}")
+        print(f"num genes in geneset \"{geneset}\": {G_num_genes_in_geneset_S}")
+
+        up_score = np.sqrt((N_num_genes_universal_L-G_num_genes_in_geneset_S)/G_num_genes_in_geneset_S)
+        down_score = np.sqrt(G_num_genes_in_geneset_S/(N_num_genes_universal_L-G_num_genes_in_geneset_S))
+
+        score = 0.0
+        score_list = list()
+
+        for gene in ranked_genes_list:
+            if gene in set_of_genes_in_geneset:
+                score = score + up_score
+            else:
+                score = score - down_score
+
+            score_list.append(score)
+
+        geneset_enrichment_score = np.round(max(score_list), 2)
         
-        # TODO: Get genes in this gene set (only those in expression data)
-        
-        # TODO: Calculate appropriate scores
-        # up_score = depends on # genes in set
-        # down_score = depends on # genes NOT in set
-        
-        # TODO: Walk through ranked list, calculate running sum
-        # Add up_score if gene in set, subtract down_score if not
-        
-        # TODO: Find supremum (max value) of running sum
-        
-        # TODO: Round to 2 decimal places
-        
-        enrichment_score = 0.0
-        
-        return round(enrichment_score, 2)
+        return geneset_enrichment_score
     
     
     def get_sig_sets(self, p):
@@ -285,12 +294,12 @@ def main():
     
     # Get ranked genes
     ranked_genes = gsea.get_gene_rank_order()
-    # print(f"Ranked {len(ranked_genes)} genes")
+    print(f"Ranked {len(ranked_genes)} genes")
     
     # Example: Get enrichment score for a specific pathway
     example_pathway = "KEGG_CITRATE_CYCLE_TCA_CYCLE"
-    # es = gsea.get_enrichment_score(example_pathway)
-    # print(f"Enrichment score for {example_pathway}: {es}")
+    gene_enrichment_score = gsea.get_enrichment_score(example_pathway)
+    print(f"Enrichment score for {example_pathway}: {gene_enrichment_score}")
     
     # Get significant gene sets at p < 0.05
     # sig_sets = gsea.get_sig_sets(0.05)
