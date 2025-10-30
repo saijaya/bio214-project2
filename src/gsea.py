@@ -15,6 +15,61 @@ import pandas as pd
 import numpy as np
 
 
+def read_geneset_definitions(gmt_file):
+    """
+    Read KEGG gene sets from .gmt file format.
+
+    Args:
+        gmt_file (str): Path to .gmt file
+
+    Returns:
+        dict: Dictionary mapping pathway name to list of genes
+              {pathway_name: [gene1, gene2, ...]}
+    """
+    gene_sets = {}
+
+    with open(gmt_file, 'r') as f:
+        for line in f:
+            parts = line.strip().split('\t')
+            if len(parts) >= 3:
+                pathway_name = parts[0]
+                genes = parts[2:]
+                gene_sets[pathway_name] = genes
+
+    return gene_sets
+
+
+def read_human_gene_expression_file(human_gene_expression_file):
+    """
+    Read expression data file.
+
+    Args:
+        human_gene_expression_file (str): Path to expression file
+
+    Returns:
+        pd.DataFrame: Expression data with genes as index, samples as columns
+    """
+    # Read tab-separated file, first column is gene names (index)
+    human_gene_expression_df = pd.read_csv(human_gene_expression_file, sep='\t', index_col=0)
+    return human_gene_expression_df
+
+
+def read_human_condition_as_dict(samples_txt_file):
+    """
+    Read sample labels file and return as dictionary.
+
+    Args:
+        samples_txt_file (str): Path to sample file
+
+    Returns:
+        dict: Dictionary mapping sample_id to condition {sample_id: 0 or 1}
+    """
+    labels_df = pd.read_csv(samples_txt_file, sep='\t', header=None,
+                            names=['sample_id', 'condition'])
+    print(labels_df)
+    labels_dict = dict(zip(labels_df['sample_id'], labels_df['condition']))
+    return labels_dict
+
 class GSEA:
     """
     Class to perform Gene Set Enrichment Analysis.
@@ -25,13 +80,12 @@ class GSEA:
         Initialize the GSEA class.
         Store any instance variables you need here.
         """
-        self.expression_data = None
-        self.sample_data = None
-        self.gene_sets = None
+        self.human_gene_expression_df = None
+        self.human_condition_dict = None
+        self.geneset_definitions_dict = None
         self.ranked_genes = None
         # Add any other instance variables you need
-    
-    
+
     def load_data(self, expfile, sampfile, genesets):
         """
         Load expression data, sample assignments, and KEGG gene sets.
@@ -48,16 +102,14 @@ class GSEA:
               For .gmt file: each row is a gene set, tab-delimited
               Column 1 = pathway name, Column 2 = URL (ignore), rest = genes
         """
-        # TODO: Read expression data
-        # Likely format: rows = genes, columns = samples
+        self.geneset_definitions_dict = read_geneset_definitions(genesets)
+        print(len(self.geneset_definitions_dict))
         
-        # TODO: Read sample assignments
-        # Format: sample_id, condition (healthy or endometriosis)
-        
-        # TODO: Read KEGG gene sets from .gmt file
-        # Store as dictionary: {pathway_name: [list of genes]}
-        
-        pass
+        self.human_condition_dict = read_human_condition_as_dict(sampfile)
+        print(self.human_condition_dict)
+
+        self.human_gene_expression_df = read_human_gene_expression_file(expfile)
+        print(self.human_gene_expression_df)
     
     
     def get_gene_rank_order(self):
@@ -183,17 +235,17 @@ def main():
         print("Usage: python3 gsea.py expfile sampfile keggfile")
         sys.exit(1)
     
-    exp_file = sys.argv[1]
-    samp_file = sys.argv[2]
-    kegg_file = sys.argv[3]
+    human_gene_expression_file = sys.argv[1]
+    human_condition_file = sys.argv[2]
+    geneset_definitions_file = sys.argv[3]
     
     # Create GSEA object and run analysis
     gsea = GSEA()
-    gsea.load_data(exp_file, samp_file, kegg_file)
+    gsea.load_data(human_gene_expression_file, human_condition_file, geneset_definitions_file)
     
     # Get ranked genes
-    ranked_genes = gsea.get_gene_rank_order()
-    print(f"Ranked {len(ranked_genes)} genes")
+    # ranked_genes = gsea.get_gene_rank_order()
+    # print(f"Ranked {len(ranked_genes)} genes")
     
     # Example: Get enrichment score for a specific pathway
     example_pathway = "KEGG_CITRATE_CYCLE_TCA_CYCLE"
@@ -201,8 +253,8 @@ def main():
     # print(f"Enrichment score for {example_pathway}: {es}")
     
     # Get significant gene sets at p < 0.05
-    sig_sets = gsea.get_sig_sets(0.05)
-    print(f"Found {len(sig_sets)} significant gene sets")
+    # sig_sets = gsea.get_sig_sets(0.05)
+    # print(f"Found {len(sig_sets)} significant gene sets")
     
     # Optional: Output results for your own analysis
 
