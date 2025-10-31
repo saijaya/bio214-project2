@@ -212,6 +212,9 @@ class GSEA:
         print(f"num genes universal: {N_num_genes_universal_L}")
         print(f"num genes in geneset \"{geneset}\": {G_num_genes_in_geneset_S}")
 
+        if G_num_genes_in_geneset_S == 0 or G_num_genes_in_geneset_S == N_num_genes_universal_L:
+            return 0.0
+
         up_score = np.sqrt((N_num_genes_universal_L-G_num_genes_in_geneset_S)/G_num_genes_in_geneset_S)
         down_score = np.sqrt(G_num_genes_in_geneset_S/(N_num_genes_universal_L-G_num_genes_in_geneset_S))
 
@@ -263,7 +266,7 @@ class GSEA:
         # TODO: Calculate actual enrichment scores for all gene sets
         original_condition_df = self.human_condition_df.copy()
         actual_lebel_geneset_enrichment_score_dict = dict()
-        for geneset_name, set_of_genes in self.geneset_definitions_dict.items():
+        for geneset_name in self.geneset_definitions_dict:
             actual_lebel_geneset_enrichment_score_dict[geneset_name] = self.get_enrichment_score(geneset_name)
 
         permutated_label_geneset_enrichment_scores_dict = dict()
@@ -328,7 +331,7 @@ def main():
     
     # Get significant gene sets at p < 0.05
     sig_sets = gsea.get_sig_sets(0.05)
-    print(f"Found {len(sig_sets)} significant gene sets")
+    print(f"Found {len(sig_sets)} significant gene sets: {sig_sets}")
     
     # Optional: Output results for your own analysis
 
