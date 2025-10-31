@@ -1,15 +1,3 @@
-"""
-BIO214 Project 2 - Part 2: Gene Set Enrichment Analysis (GSEA)
-Author: [Your Name]
-Date: [Date]
-Collaborators: [List collaborators or state "None"]
-
-This script implements GSEA algorithm to identify enriched KEGG pathways
-in endometriosis patients vs. healthy controls.
-
-Usage: python3 gsea.py expfile sampfile keggfile
-"""
-
 import sys
 import pandas as pd
 import numpy as np
@@ -66,7 +54,6 @@ def read_human_condition_as_df(samples_txt_file):
     """
     labels_df = pd.read_csv(samples_txt_file, sep='\t', header=None,
                             names=['sample_id', 'condition'])
-    print(labels_df)
     return labels_df
 
 
@@ -118,16 +105,12 @@ class GSEA:
               Column 1 = pathway name, Column 2 = URL (ignore), rest = genes
         """
         self.geneset_definitions_dict = read_geneset_definitions(genesets)
-        print(len(self.geneset_definitions_dict))
-        
+
         self.human_condition_dict = read_human_condition_as_dict(sampfile)
-        print(self.human_condition_dict)
 
         self.human_condition_df = read_human_condition_as_df(sampfile)
-        print(self.human_condition_df)
 
         self.human_gene_expression_df = read_human_gene_expression_file(expfile)
-        print(self.human_gene_expression_df)
 
     def get_gene_rank_order(self):
         """
@@ -141,40 +124,34 @@ class GSEA:
         Hint: Since expression is already log-normalized, just subtract means
               Use pandas groupby and vectorized operations for efficiency
         """
-        print(self.human_gene_expression_df)
-
+        # EFFICIENCY FIX: pivot the expressions dataframe to turn it into dataframe
+        # pivot_human_gene_expression_df has columns: SYMBOL, sample_id, gene_expression
         pivot_human_gene_expression_df = self.human_gene_expression_df.reset_index().melt(
             id_vars="SYMBOL",
             var_name="sample_id",
             value_name="gene_expression"
         )
-        print(pivot_human_gene_expression_df)
-
+        # EFFICIENCY FIX: join it with sample data on sampe_id to now include condition column to df
+        # pivot_human_gene_expression_join_condition_df has columns: SYMBOL, sample_id, gene_expression, condition
         pivot_human_gene_expression_join_condition_df = pd.merge(pivot_human_gene_expression_df,
                                                                  self.human_condition_df,
                                                                  on="sample_id")
-        print(pivot_human_gene_expression_join_condition_df)
-
+        # EFFICIENCY FIX: get mean expression per gene, per condition
+        # mean_expression_per_gene_condition_df has columns: SYMBOL, condition, gene_expression (mean)
         mean_expression_per_gene_condition_df = pivot_human_gene_expression_join_condition_df[["SYMBOL", "condition", "gene_expression"]].groupby(["SYMBOL", "condition"]).mean().reset_index()
-        print(mean_expression_per_gene_condition_df)
 
-        # Pivot to make conditions (0, 1) become columns
+        # EFFICIENCY FIX: Pivot again to make conditions (0, 1) become columns
+        # pivoted_mean_expression_per_gene_condition_df has columns: SYMBOL, condition, 0, 1 and values are mean gene_expression
         pivoted_mean_expression_per_gene_condition_df = mean_expression_per_gene_condition_df.pivot(
-            index='SYMBOL',
-            columns='condition',
-            values='gene_expression'
+            index="SYMBOL",
+            columns="condition",
+            values="gene_expression"
         )
-
+        # EFFICIENCY FIX: subtract column 0 from column 1 to get log_fc_gene per gene/ SYMBOL
         pivoted_mean_expression_per_gene_condition_df["log_fc_gene"] = pivoted_mean_expression_per_gene_condition_df[1] - pivoted_mean_expression_per_gene_condition_df[0]
-
-        print(pivoted_mean_expression_per_gene_condition_df)
-
+        # Rank it by expression in descending order
         ranked_gene_df = pivoted_mean_expression_per_gene_condition_df.sort_values(by="log_fc_gene", ascending=False)
-        print(ranked_gene_df)
         self.ranked_genes_list = ranked_gene_df.index.tolist()
-        print(self.ranked_genes_list[:10])
-        print(self.ranked_genes_list[-10:])
-
         return self.ranked_genes_list
 
     def get_enrichment_score(self, geneset):
@@ -203,14 +180,13 @@ class GSEA:
         if self.ranked_genes_list is None:
             self.ranked_genes_list = self.get_gene_rank_order()
 
+        #  EFFICIENCY FIX: use sets instead of lists for quick verification
         ranked_genes_set = set(self.ranked_genes_list)
         set_of_genes_in_geneset = self.geneset_definitions_dict[geneset]
         set_of_genes_in_geneset = set([gene for gene in set_of_genes_in_geneset if gene in ranked_genes_set])
 
         N_num_genes_universal_L = len(self.ranked_genes_list)
         G_num_genes_in_geneset_S = len(set_of_genes_in_geneset)
-        print(f"num genes universal: {N_num_genes_universal_L}")
-        print(f"num genes in geneset \"{geneset}\": {G_num_genes_in_geneset_S}")
 
         if G_num_genes_in_geneset_S == 0 or G_num_genes_in_geneset_S == N_num_genes_universal_L:
             return 0.0
@@ -332,8 +308,6 @@ def main():
     # Get significant gene sets at p < 0.05
     sig_sets = gsea.get_sig_sets(0.05)
     print(f"Found {len(sig_sets)} significant gene sets: {sig_sets}")
-    
-    # Optional: Output results for your own analysis
 
 
 if __name__ == "__main__":

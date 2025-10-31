@@ -1,15 +1,3 @@
-"""
-BIO214 Project 2 - Part 1: Protein-Protein Interaction Network Analysis
-Author: [Your Name]
-Date: [Date]
-Collaborators: [List collaborators or state "None"]
-
-This script implements Node2Vec embedding for predicting disease-related genes
-based on protein-protein interaction networks.
-
-Usage: python3 ppi.py diseaseGeneFile interactionNetworkFile
-"""
-
 import sys
 import os
 import networkx as nx
@@ -51,8 +39,6 @@ def load_interaction_network(filepath):
         networkx.Graph: Undirected graph of interactions
     """
     df = pd.read_csv(filepath, sep=' ', header=None, names=['gene1', 'gene2', 'weight'])
-    print("\nInput gene network file:")
-    print(df)
     gene_network = nx.from_pandas_edgelist(df, source='gene1', target='gene2')
     return gene_network
 
@@ -87,18 +73,7 @@ class PPI:
               Consider using nx.read_edgelist() or nx.parse_edgelist()
         """
         self.disease_genes = read_gene_list(diseaseGeneFile)
-        print("\ndisease_genes:")
-        for gene in self.disease_genes:
-            print(gene)
-
         self.gene_network = load_interaction_network(interactionNetworkFile)
-        nodes = list(self.gene_network.nodes())
-        print("\ngene_network:")
-        print(f"Total nodes: {len(nodes)}")
-        print(f"Sample nodes: {nodes[:20]}")
-        edges = list(self.gene_network.edges())
-        print(f"Total edges: {len(edges)}")
-        print(f"Sample edges: {edges[:10]}")
 
     def calculate_embedding(self):
         """
@@ -121,7 +96,6 @@ class PPI:
         # Performance optimization: check if pre-trained trained_node2vec_model exists
         if os.path.exists("node2vec_pretrained"):
             trained_node2vec_model = Word2Vec.load("node2vec_pretrained")
-            print("loaded pretrained trained_node2vec_model successfully")
         else:
             # Create Node2Vec object
             # dimensions = 64, walk_length = 30, num_walks = 100, workers = 1, seed = 42
@@ -139,11 +113,7 @@ class PPI:
         
         # Extract embeddings for all nodes in the graph
         gene_nodes = list(self.gene_network.nodes())
-        print(f"num genes in network: {len(gene_nodes)}")
         gene_embeddings = [trained_node2vec_model.wv[node] for node in gene_nodes]
-        print(f"num embeddings: {len(gene_embeddings)}")
-        print(f"verify embedding 0: {self.trained_node2vec_model.wv[gene_nodes[0]]}")
-        print(f"verify embedding 0: {gene_embeddings[0]}")
 
         return gene_nodes, gene_embeddings
 
@@ -178,6 +148,8 @@ class PPI:
         if len(disease_gene_indices) == 0:
             return similar_genes
 
+        # EFFICIENCY FIX: stacking all disease gene embeddings into a single matrix. This makes it significantly faster:
+        # going from loops to using numpy's matrix calculation efficiency.
         disease_gene_embeddings_matrix = network_gene_embeddings_matrix[disease_gene_indices]
         disease_to_network_gene_distances = cosine_distances(disease_gene_embeddings_matrix, network_gene_embeddings_matrix)
 
@@ -185,8 +157,6 @@ class PPI:
         gene_nodes_matrix = np.array(gene_nodes)
         close_genes = gene_nodes_matrix[threshold_filter]
         similar_genes.update(close_genes)
-
-        print(f"Found {len(similar_genes)} similar genes (including {len(self.disease_genes)} disease genes)")
 
         return similar_genes
 
@@ -212,8 +182,6 @@ def main():
     threshold = 0.2
     similar_genes = ppi.get_close_genes(gene_nodes, gene_embeddings, threshold)
     print(similar_genes)
-    
-    # You can output to file here if needed for your own analysis
 
 
 if __name__ == "__main__":
