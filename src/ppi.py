@@ -1,3 +1,10 @@
+"""
+disclaimer:
+I used cursor to help me with some syntax (such as how to melt dataframes etc.)
+the same way I would have used stackoverflow in the past.
+However, the choice of data structures, implementation and logic is entirely my own.
+"""
+
 import sys
 import os
 import networkx as nx
@@ -10,33 +17,28 @@ import pandas as pd
 
 def read_gene_list(filepath):
     """
-    Read a list of genes from a file (one gene per line).
-    
-    Args:
+    read list of genes from a file
+    input:
         filepath (str): Path to gene list file
-    
-    Returns:
-        list: List of gene names (strings)
+    return:
+        list: list of gene names
     """
     genes = []
     with open(filepath, 'r') as f:
         for line in f:
             gene = line.strip()
-            if gene:  # Skip empty lines
+            if gene:
                 genes.append(gene)
     return genes
 
 
 def load_interaction_network(filepath):
     """
-    Load interaction network into a networkx graph.
-    
-    Args:
-        filepath (str): Path to tab-delimited network file
-                       Format: gene1 \t gene2 \t weight
-    
-    Returns:
-        networkx.Graph: Undirected graph of interactions
+    load interaction network into a networkx obj
+    input:
+        filepath (str): network file path
+    return:
+        networkx.Graph obj
     """
     df = pd.read_csv(filepath, sep=' ', header=None, names=['gene1', 'gene2', 'weight'])
     gene_network = nx.from_pandas_edgelist(df, source='gene1', target='gene2')
@@ -45,73 +47,57 @@ def load_interaction_network(filepath):
 
 class PPI:
     """
-    Class to perform protein-protein interaction network analysis using Node2Vec embeddings.
+    class to perform protein-protein interaction network analysis
     """
     
     def __init__(self):
         """
-        Initialize the PPI class.
-        Store any instance variables you need here.
+        initalize the PPI class.
         """
         self.disease_genes = None
         self.gene_network = None
         self.trained_node2vec_model = None
 
-    def load_data(self, diseaseGeneFile, interactionNetworkFile):
+    def load_data(self, disease_gene_file, interaction_network_file):
         """
-        Load disease gene list and interaction network from files.
-        
-        Args:
-            diseaseGeneFile (str): Path to file containing disease genes (one per line)
-            interactionNetworkFile (str): Path to tab-delimited interaction network file
-                                         (gene1, gene2, weight per line)
-        
-        Returns:
-            None (stores data in instance variables)
-        
-        Hint: Use networkx to create a graph from the interaction network.
-              Consider using nx.read_edgelist() or nx.parse_edgelist()
+        load disease gene list and interaction network from files
+        input:
+            disease_gene_file (str): disease genes file path
+            interaction_network_file (str): interaction network file path
+        return:
+            None
         """
-        self.disease_genes = read_gene_list(diseaseGeneFile)
-        self.gene_network = load_interaction_network(interactionNetworkFile)
+        self.disease_genes = read_gene_list(disease_gene_file)
+        self.gene_network = load_interaction_network(interaction_network_file)
 
     def calculate_embedding(self):
         """
-        Calculate node embeddings using Node2Vec algorithm.
-        
-        REQUIRED PARAMETERS:
-        - Node2Vec: dimensions=64, walk_length=30, num_walks=100, workers=1, seed=42
-        - Training: window=3, min_count=1, batch_words=4
-        
-        Returns:
+        calculate node embeddings
+        return:
             tuple: (gene_nodes, gene_embeddings)
                 - gene_nodes: list of node names (strings)
                 - gene_embeddings: list of corresponding vector embeddings (numpy arrays)
-                Order must correspond between the two lists!
-        
-        Performance tip: Save and load pre-trained trained_node2vec_model to speed up autograder.
-        See project description lines 89-108 for details.
         """
         
         # Performance optimization: check if pre-trained trained_node2vec_model exists
         if os.path.exists("node2vec_pretrained"):
             trained_node2vec_model = Word2Vec.load("node2vec_pretrained")
         else:
-            # Create Node2Vec object
+            # create node2vec object
             # dimensions = 64, walk_length = 30, num_walks = 100, workers = 1, seed = 42
             node2vec_model = Node2Vec(self.gene_network, dimensions=64, walk_length=30,
                                       num_walks=100, workers=1, seed=42)
             
-            # Fit the trained_node2vec_model with EXACT training parameters
+            # fit the trained_node2vec_model with training parameters
             # window=3, min_count=1, batch_words=4
             trained_node2vec_model = node2vec_model.fit(window=3, min_count=1, batch_words=4)
             
-            # Save the trained_node2vec_model for future use
+            # save trained_node2vec_model
             trained_node2vec_model.save("node2vec_pretrained")
 
         self.trained_node2vec_model = trained_node2vec_model
         
-        # Extract embeddings for all nodes in the graph
+        # get embeddings for all nodes in graph
         gene_nodes = list(self.gene_network.nodes())
         gene_embeddings = [trained_node2vec_model.wv[node] for node in gene_nodes]
 
@@ -119,30 +105,19 @@ class PPI:
 
     def get_close_genes(self, gene_nodes, gene_embeddings, threshold):
         """
-        Find genes similar to disease genes based on cosine distance threshold.
-        
-        Args:
-            gene_nodes (list): List of all gene names (strings)
+        fid genes similar to disease genes
+        input:
+            gene_nodes (list): list of all gene names (strings)
             gene_embeddings (list): List of all gene embeddings (numpy arrays)
-                                   Must be in same order as gene_nodes
-            threshold (float): Maximum cosine distance for genes to be considered similar
-                             Valid range: [0, 2]
-        
-        Returns:
-            set: Set of gene names (strings) that are similar to disease genes
-                 Includes the original disease genes
-                 If no genes are predicted, return just the disease genes
-        
-        Hint: Use sklearn.metrics.pairwise.cosine_distances (much faster than scipy)
-              For each disease gene, find all genes within threshold distance
-              Take union across all disease genes
+            threshold (float): max cosine distance for genes to be considered similar
+        return:
+            set: set of gene names that are similar to disease genes
         """
         
-        # Convert gene_embeddings to numpy array
+        # convert gene_embeddings to numpy array
         network_gene_embeddings_matrix = np.array(gene_embeddings)
         similar_genes = set(self.disease_genes)
         gene_to_index_dict = {gene: index for index, gene in enumerate(gene_nodes)}
-
         disease_gene_indices = [gene_to_index_dict[gene] for gene in self.disease_genes if gene in gene_to_index_dict]
 
         if len(disease_gene_indices) == 0:
@@ -162,10 +137,6 @@ class PPI:
 
 
 def main():
-    """
-    Main function to run PPI analysis from command line.
-    This is for your own testing - autograder calls class methods directly.
-    """
     if len(sys.argv) != 3:
         print("Usage: python3 ppi.py diseaseGeneFile interactionNetworkFile")
         sys.exit(1)
@@ -173,12 +144,10 @@ def main():
     disease_file = sys.argv[1]
     network_file = sys.argv[2]
     
-    # Create PPI object and run analysis
     ppi = PPI()
     ppi.load_data(disease_file, network_file)
     gene_nodes, gene_embeddings = ppi.calculate_embedding()
 
-    # Example: Get similar genes with threshold of 0.5
     threshold = 0.2
     similar_genes = ppi.get_close_genes(gene_nodes, gene_embeddings, threshold)
     print(similar_genes)
